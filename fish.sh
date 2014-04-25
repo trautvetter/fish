@@ -24,6 +24,7 @@ function fish {
 
   FISH="<*)))>{"
   FISHREV="}<(((*>"
+  re='^[0-9]+$'
 
   for var in "$@"
   do
@@ -31,18 +32,18 @@ function fish {
     "rev")   FISH=$FISHREV;;
     "heaps") cnt=50;; #$RANDOM;;
     "more")  cnt=11;;
+    *)
+      if [[ -n "$1" ]] && [[ -z "${cnt}" ]] ; then
+        if ! [[ "$1" =~ $re ]] ; then
+          echo "'$1' is not a number the fish knows" >&2;
+          cnt=1
+        else
+          cnt="$1"
+        fi
+      fi
+      ;;
     esac
   done
-
-  re='^[0-9]+$'
-  if [[ -n "$1" ]] && [[ -z "${cnt}" ]] ; then
-    if ! [[ "$1" =~ $re ]] ; then
-      echo "'$1' is not a number the fish knows" >&2;
-      cnt=1
-    else
-      cnt="$1"
-    fi
-  fi
 
   for i in `seq 1 $cnt`;
   do
