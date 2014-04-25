@@ -1,18 +1,26 @@
 #!/bin/bash
 #-x # bash debugger thingy
 
+# Include functions from other files
 source fish_functions.sh
+
+declare -a SUBCOMMANDS=()
 
 #-------------------
 #
 #-------------------
 function fish {
-  declare -a FUNCS=(
-  'fish        | -f [n]    | fish'
-  'fish        | fish [n]  | fish'
-  'usage       | -h        | display this usage'
-  'usage       | --help    | display this usage'
+  #----------
+  declare -a LOCALSUBCOMMANDS=(
+  "more  | display more fish"
+  "heaps | display heaps of fish"
+  "rev   | fish face the other direction"
   );
+  if [ "$1" == "--subcommands" ]; then
+    SUBCOMMANDS=("${LOCALSUBCOMMANDS[@]}")
+    return
+  fi
+  #----------
 
   FISH="<*)))>{"
   FISHREV="}<(((*>"
@@ -45,17 +53,21 @@ function fish {
 function usage {
   declare -A USAGE_SWITCHES
   declare -A USAGE_TEXT
-
-  for element in "${FUNCS[@]}"
+  declare -A USAGE_SUBCOMMANDS
+  
+  for element in "${COMBINED_FUNCS[@]}"
   do
     IFS='|' read -a array <<< "$element"
     key=$(trim "${array[0]}")
     switch=$(trim "${array[1]}")
     text=$(trim "${array[2]}")
+    subcommands=$(trim "${array[3]}")
+
     isNotSet USAGE_SWITCHES[$key]
     if [ $? -ne 0 ]; then
       USAGE_SWITCHES[$key]=" $switch"
       USAGE_TEXT[$key]="$text"
+      USAGE_SUBCOMMANDS[$key]="$subcommands"
     else
       USAGE_SWITCHES[$key]+=", ${switch}"
     fi
@@ -63,14 +75,15 @@ function usage {
 
   echo usage: $0 [OPTION]
   echo Options:
-  for item in "${!USAGE_SWITCHES[@]}"
+  for key in "${!USAGE_SWITCHES[@]}"
   do
-    echo "     ${USAGE_SWITCHES[$item]}"
-    echo "          ${USAGE_TEXT[$item]}"
+    echo "     ${USAGE_SWITCHES[$key]}"
+    echo "          ${USAGE_TEXT[$key]}"
+    [[ ${USAGE_SUBCOMMANDS[$key]} == "yes" ]] && getSubCommands $key
   done
 }
 #//-----------------
-
+# Funtion list
 #-------------------
 # single quoted, pipe separated, list of functions - one per line
 # Fields are:
@@ -81,11 +94,12 @@ function usage {
 # Multiple switches can be defined by creating a new line for the function
 # and giving it a different switch. Only the first usage text will be displayed.
 #-------------------
-declare -a FUNCS=(
-'fish        | -f [n]    | do the fish thing'
-'fish        | fish [n]  |'
-'usage       | -h        | display this usage'
-'usage       | --help    |'
+declare -a CORE_FUNCS=(
+# function   | switch    | usage             | sub commands
+'fish        | -f <n>    | do the fish thing | yes'
+'fish        | fish <n>  |                   | yes'
+'usage       | -h        | display this usage| no'
+'usage       | --help    |                   | no'
 );
 #//-----------------
 
@@ -107,11 +121,24 @@ isNotSet() {
   fi
 }
 
+getSubCommands() {
+  $1 --subcommands
+  for item in "${SUBCOMMANDS[@]}"
+  do
+    echo "               $item"
+  done
+  unset SUBCOMMANDS
+}
+
 ####################
 # Main
 ####################
 
-for element in "${FUNCS[@]}"
+# Pull functions in from fish_functions.sh
+COMBINED_FUNCS=( "${CORE_FUNCS[@]}" "${FISH_FUNCS[@]}" )
+
+# Process
+for element in "${COMBINED_FUNCS[@]}"
 do
   IFS='|' read -a array <<< "$element"
   # see if 2nd item equals ARG
