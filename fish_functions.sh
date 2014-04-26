@@ -13,17 +13,18 @@ declare -a FISH_FUNCS=(
 #
 #-------------------
 function carroll {
-  echo "If you don't know where you are going, any road will take you there. Lewis Carroll";
+  echo "If you don't know where you are going, any road will take you there. Lewis Carroll"
 }
 
 function bukowski {
-  echo "Find what you love and let it kill you. Bukowski";
+  echo "Find what you love and let it kill you. Bukowski"
 }
 
 function quote {
   #----------
   declare -a LOCALSUBCOMMANDS=(
   # switch|alias| usage
+  '-b     | b   | display bukowski quote'
   '-b     |-b   | display bukowski quote'
   '-c     |-c   | display carroll quote'
   );

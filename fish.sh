@@ -12,9 +12,11 @@ declare -a SUBCOMMANDS=()
 function fish {
   #----------
   declare -a LOCALSUBCOMMANDS=(
-  "more  | display more fish"
-  "heaps | display heaps of fish"
-  "rev   | fish face the other direction"
+  # switch|alias | usage
+  'more   | m    | display more fish'
+  'more   | more | display more fish'
+  'heaps  | heaps| display heaps of fish'
+  'rev    | rev  | fish face the other direction'
   );
   if [ "$1" == "--subcommands" ]; then
     SUBCOMMANDS=("${LOCALSUBCOMMANDS[@]}")
@@ -78,9 +80,10 @@ function usage {
   echo Options:
   for key in "${!USAGE_SWITCHES[@]}"
   do
-    echo "     ${USAGE_SWITCHES[$key]}"
-    echo "          ${USAGE_TEXT[$key]}"
+    printf '%5s%s\n' "" "${USAGE_SWITCHES[$key]}"
+    printf '%10s%s\n' "" "${USAGE_TEXT[$key]}"
     [[ ${USAGE_SUBCOMMANDS[$key]} == "yes" ]] && getSubCommands $key
+    echo
   done
 }
 #//-----------------
@@ -88,7 +91,7 @@ function usage {
 #-------------------
 # single quoted, pipe separated, list of functions - one per line
 # Fields are:
-# function name | switch | usage
+# function name | switch | usage | has sub commands [yes|no]
 # Switch field is split on space and first part is used;
 # subsequent arguments are forwarded and handling becomes the responsibility of
 # the function that receives them.
@@ -98,6 +101,7 @@ function usage {
 declare -a CORE_FUNCS=(
 # function   | switch    | usage             | sub commands
 'fish        | -f <n>    | do the fish thing | yes'
+'fish        | f <n>     | do the fish thing | yes'
 'fish        | fish <n>  |                   | yes'
 'usage       | -h        | display this usage| no'
 'usage       | --help    |                   | no'
@@ -122,11 +126,75 @@ isNotSet() {
   fi
 }
 
-getSubCommands() {
-  $1 --subcommands
-  for item in "${SUBCOMMANDS[@]}"
+callFunction() {
+  command=$1 # the function to call
+  args=
+  shift
+
+  # find out of any of the args is an alias
+  for element in "${COMBINED_FUNCS[@]}"
   do
-    echo "               $item"
+    IFS='|' read -a array <<< "$element"
+    key=$(trim "${array[0]}")
+    hassubcommands=$(trim "${array[3]}")
+    if [ "${key}" == "${command}" ] && [ "${hassubcommands}" == "yes" ]; then
+      # find out what the passed in argument should really be
+      ${command} --subcommands
+      # Process
+      for ARG in $@
+      do
+        for item in "${SUBCOMMANDS[@]}"
+        do
+          IFS='|' read -a arrSubs <<< "$item"
+          # see if 2nd item (the alias) equals the passed in argument
+          IFS=' ' read -a argstring <<< "$(trim "${arrSubs[1]}")"
+
+          if [ "$(trim "${argstring[0]}")" == "$ARG" ]; then
+            ## instead of the alias, put the real switch onto args
+            args+="$(trim "${arrSubs[0]}") "
+            break
+          else
+            # The argument is not an alias for anything, so just pass it through as is
+            args+="$ARG "
+            break
+          fi
+
+        done
+      done
+      unset SUBCOMMANDS
+      break
+    fi
+  done
+
+  ${command} ${args}
+}
+
+getSubCommands() {
+  declare -A SWITCHES
+  declare -A ALIASES
+  declare -A USAGE
+  $1 --subcommands
+  for element in "${SUBCOMMANDS[@]}"
+  do
+    IFS='|' read -a array <<< "$element"
+    switch=$(trim "${array[0]}")
+    alias=$(trim "${array[1]}")
+    usage=$(trim "${array[2]}")
+
+    isNotSet SWITCHES[$switch]
+    if [ $? -ne 0 ]; then
+      SWITCHES[$switch]=" $switch"
+      ALIASES[$switch]="$alias"
+      USAGE[$switch]="$usage"
+    else
+      ALIASES[$switch]+=", ${alias}"
+    fi
+  done
+  printf '%16s%s\n' "" "Sub commands:"
+  for switch in "${!SWITCHES[@]}"
+  do
+    printf '%22s%s\n' "" "${ALIASES[$switch]}"
+    printf '%27s%s\n' "" "${USAGE[$switch]}"
   done
   unset SUBCOMMANDS
 }
@@ -147,12 +215,10 @@ do
   if [ "$(trim "${argstring[0]}")" == "$1" ]; then
     ## call the function named in first element
     shift # get rid of first, and forward the remaining args
-    $(trim "${array[0]}") $@
+    callFunction $(trim "${array[0]}") $@
     exit
   fi
 done
 
-if [ -z "$ARG" ]; then
-  usage
-fi
-
+# Display usage if nothing else if going on
+usage
